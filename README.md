@@ -15,6 +15,10 @@ This provides key benefits:
 2. **Seamless Backtesting:** We can swap a live WebSocket feed for a historical file replay, and a live execution engine for a Limit Order Book (LOB) simulator, without changing a single line of the decision logic.
 3. **Observability:** By returning explicit reasoning traces (e.g., expected value, fill probability, inventory penalty), strategies become inspectable and debuggable.
 
+## Known Limitations
+
+- **Queue Position Tracking:** Binance's public depth stream only provides L2 data (aggregate quantity per price level), not L3 (individual order-level data). This means we cannot distinguish whether a depth decrease at a price level is due to fills or cancellations, or whether it happened ahead of or behind our resting order. **Our approximation:** We treat all depth decreases at a price level as reducing the volume ahead of our order. This is a standard simplifying assumption used in LOB backtesting without L3 data, though it tends to be slightly optimistic on fill probability.
+
 ## Feature Overview
 
 - **Decision Engine Interface:** Swappable strategies (Fixed Spread, Inventory-aware, EV-based).
