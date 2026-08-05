@@ -1,6 +1,6 @@
 # Swiftplay
 
-Swiftplay is a cryptocurrency market-making system built for Binance BTCUSDT. The core architectural philosophy of Swiftplay is a focus on **decision-quality quoting** rather than pure execution speed.
+Swiftplay is a cryptocurrency market-making system built for Binance.US BTCUSD. The core architectural philosophy of Swiftplay is a focus on **decision-quality quoting** rather than pure execution speed.
 
 ## Architecture: The Decision-Centric Design
 
