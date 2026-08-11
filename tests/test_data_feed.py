@@ -27,7 +27,11 @@ def test_historical_replay_feed_parsing() -> None:
         assert updates[0]["timestamp"] == 100
         assert updates[1]["timestamp"] == 200
     finally:
-        os.remove(file_path)
+        try:
+            os.remove(file_path)
+        except PermissionError:
+            # Windows may keep the file locked briefly; tolerate removal failure.
+            pass
 
 
 def test_historical_replay_feed_speed_multiplier() -> None:
@@ -56,4 +60,8 @@ def test_historical_replay_feed_speed_multiplier() -> None:
         # Should take roughly 0.01 seconds
         assert duration_fast < 0.05
     finally:
-        os.remove(file_path)
+        try:
+            os.remove(file_path)
+        except PermissionError:
+            # Windows may keep the file locked briefly; tolerate removal failure.
+            pass

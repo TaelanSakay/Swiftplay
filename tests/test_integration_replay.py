@@ -56,4 +56,14 @@ def test_integration_data_feed_to_lob() -> None:
         assert book.best_ask == 100.5
 
     finally:
-        os.remove(file_path)
+        # Ensure generator is closed so the file handle is released on Windows
+        try:
+            feed_iterator.close()
+        except Exception:
+            pass
+
+        try:
+            os.remove(file_path)
+        except PermissionError:
+            # On Windows the file may still be locked briefly; tolerate.
+            pass

@@ -48,7 +48,7 @@ class BacktestRunner:
     def run(self) -> List[StepRecord]:
         active_bid_id = None
         active_ask_id = None
-        
+
         for update in self.feed:
             # 1. Update Market
             self.book.process_market_update(update)
@@ -62,10 +62,10 @@ class BacktestRunner:
                 self.quotes_filled += 1
                 if fill.order_id.startswith("BID_"):
                     self.inventory += fill.fill_quantity
-                    self.cash -= (fill.fill_price * fill.fill_quantity)
+                    self.cash -= fill.fill_price * fill.fill_quantity
                 elif fill.order_id.startswith("ASK_"):
                     self.inventory -= fill.fill_quantity
-                    self.cash += (fill.fill_price * fill.fill_quantity)
+                    self.cash += fill.fill_price * fill.fill_quantity
 
             # 4. Record State
             mid_price = self.book.mid_price or 0.0
@@ -100,16 +100,28 @@ class BacktestRunner:
                     self.book.cancel_order(active_bid_id)
                 if active_ask_id:
                     self.book.cancel_order(active_ask_id)
-                    
+
                 active_bid_id = f"BID_{self.quotes_placed}"
                 active_ask_id = f"ASK_{self.quotes_placed}"
-                
-                if quote.bid_price is not None and quote.bid_qty is not None and quote.bid_qty > 0:
-                    self.book.place_order(active_bid_id, "BUY", quote.bid_price, quote.bid_qty)
+
+                if (
+                    quote.bid_price is not None
+                    and quote.bid_qty is not None
+                    and quote.bid_qty > 0
+                ):
+                    self.book.place_order(
+                        active_bid_id, "BUY", quote.bid_price, quote.bid_qty
+                    )
                     self.quotes_placed += 1
-                    
-                if quote.ask_price is not None and quote.ask_qty is not None and quote.ask_qty > 0:
-                    self.book.place_order(active_ask_id, "SELL", quote.ask_price, quote.ask_qty)
+
+                if (
+                    quote.ask_price is not None
+                    and quote.ask_qty is not None
+                    and quote.ask_qty > 0
+                ):
+                    self.book.place_order(
+                        active_ask_id, "SELL", quote.ask_price, quote.ask_qty
+                    )
                     self.quotes_placed += 1
 
         return self.history

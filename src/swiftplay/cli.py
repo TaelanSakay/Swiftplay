@@ -37,6 +37,15 @@ def main() -> None:
         help="Comma-separated list of strategies to run",
     )
 
+    # Benchmark command
+    benchmark_parser = subparsers.add_parser("benchmark", help="Run benchmark on market data")
+    benchmark_parser.add_argument(
+        "--data",
+        type=str,
+        default="data/sample_btcusd_depth.jsonl",
+        help="Path to historical L2 depth JSONL file",
+    )
+
     args = parser.parse_args()
     setup_logging()
 
@@ -86,6 +95,20 @@ def main() -> None:
             "\nNote: Current sample data is very short. "
             "Use a larger dataset for meaningful metrics."
         )
+
+    elif args.command == "benchmark":
+        logger.info(f"Running benchmark with data: {args.data}")
+
+        if not os.path.exists(args.data):
+            logger.error(f"Data file not found: {args.data}")
+            sys.exit(1)
+
+        import subprocess
+
+        benchmark_script = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "benchmark.py")
+        benchmark_script = os.path.abspath(benchmark_script)
+
+        subprocess.run([sys.executable, benchmark_script, "--data", args.data], check=True)
 
     else:
         parser.print_help()
