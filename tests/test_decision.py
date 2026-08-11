@@ -1,5 +1,6 @@
 from swiftplay.decision.fixed_spread import FixedSpreadStrategy
-from swiftplay.decision.interfaces import MarketState, Features
+from swiftplay.decision.interfaces import MarketState
+from swiftplay.features.pipeline import FeatureSnapshot
 
 
 def test_fixed_spread_strategy() -> None:
@@ -13,11 +14,16 @@ def test_fixed_spread_strategy() -> None:
         timestamp=1625097600,
     )
 
-    features = Features(
-        order_book_imbalance=0.5, microprice=60001.0, realized_volatility=0.01
+    features = FeatureSnapshot(
+        timestamp=1000,
+        imbalance=0.0,
+        microprice=100.1,
+        ofi=0.0,
+        spread=0.2,
+        realized_vol=0.0,
     )
 
-    quote = strategy.generate_quote(state, features)
+    quote = strategy.generate_quote(state, features, inventory=0.0)
 
     # Mid price is 60001.0
     # Spread is 10.0

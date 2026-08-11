@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
+from swiftplay.features.pipeline import FeatureSnapshot
 
 
 @dataclass
@@ -13,21 +14,15 @@ class MarketState:
 
 
 @dataclass
-class Features:
-    # Extracted feature signals
-    order_book_imbalance: float
-    microprice: float
-    realized_volatility: float
-
-
-@dataclass
 class QuoteReasoning:
     """Explicit reasoning trace for observability and analysis."""
 
     expected_value: float
-    fill_probability: float
+    fill_probability_bid: float
+    fill_probability_ask: float
     inventory_penalty: float
     confidence: float
+    explanation: str
 
 
 @dataclass
@@ -39,11 +34,29 @@ class Quote:
     reasoning: QuoteReasoning
 
 
+class FillProbabilityEstimator(ABC):
+    @abstractmethod
+    def estimate(
+        self,
+        state: MarketState,
+        features: FeatureSnapshot,
+        quote_price: float,
+        side: str,
+    ) -> float:
+        """
+        Estimate the probability of a limit order at `quote_price` getting filled
+        in the near future.
+        """
+        pass
+
+
 class QuoteDecisionEngine(ABC):
     @abstractmethod
-    def generate_quote(self, state: MarketState, features: Features) -> Quote:
+    def generate_quote(
+        self, state: MarketState, features: FeatureSnapshot, inventory: float
+    ) -> Quote:
         """
-        Generate a quote action given the current market state and features.
+        Generate a quote action given the current market state, features, and inventory.
 
         This abstract method enforces separation of business logic from execution.
         """

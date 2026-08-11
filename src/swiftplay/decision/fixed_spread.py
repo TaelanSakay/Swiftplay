@@ -1,10 +1,10 @@
 from swiftplay.decision.interfaces import (
     QuoteDecisionEngine,
     MarketState,
-    Features,
     Quote,
     QuoteReasoning,
 )
+from swiftplay.features.pipeline import FeatureSnapshot
 
 
 class FixedSpreadStrategy(QuoteDecisionEngine):
@@ -17,7 +17,9 @@ class FixedSpreadStrategy(QuoteDecisionEngine):
         self.spread = spread
         self.order_qty = order_qty
 
-    def generate_quote(self, state: MarketState, features: Features) -> Quote:
+    def generate_quote(
+        self, state: MarketState, features: FeatureSnapshot, inventory: float
+    ) -> Quote:
         mid_price = (state.bid_price + state.ask_price) / 2.0
 
         bid_price = mid_price - (self.spread / 2.0)
@@ -25,9 +27,11 @@ class FixedSpreadStrategy(QuoteDecisionEngine):
 
         reasoning = QuoteReasoning(
             expected_value=self.spread,  # Trivial
-            fill_probability=0.5,  # Trivial
+            fill_probability_bid=0.5,  # Trivial
+            fill_probability_ask=0.5,  # Trivial
             inventory_penalty=0.0,
             confidence=1.0,
+            explanation="Fixed spread logic applied.",
         )
 
         return Quote(
