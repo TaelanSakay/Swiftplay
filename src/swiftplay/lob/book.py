@@ -1,7 +1,13 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
+import bisect
 from .interfaces import OrderBookSimulator
 from .fills import FillEvent
 from .queue_position import TrackedOrder
+
+try:
+    from swiftplay.lob._compactbook import CompactBook as _CompactBook
+except ImportError:
+    _CompactBook = None
 
 
 class OrderBook(OrderBookSimulator):
@@ -11,16 +17,24 @@ class OrderBook(OrderBookSimulator):
         self.tracked_orders: Dict[str, TrackedOrder] = {}
         self.recent_fills: List[FillEvent] = []
         self.current_timestamp: int = 0
+        self._compact_book = _CompactBook() if _CompactBook is not None else None
+        # Maintain sorted price lists for fast top-N queries when the C++ extension is unavailable.
+        # `bid_prices` is kept in ascending order; best bid is bid_prices[-1]
+        # `ask_prices` is kept in ascending order; best ask is ask_prices[0]
+        self._bid_prices: List[float] = []
+        self._ask_prices: List[float] = []
 
     @property
     def best_bid(self) -> float | None:
-        valid_bids = [p for p, q in self.bids.items() if q > 0]
-        return max(valid_bids) if valid_bids else None
+        if self._compact_book is not None:
+            return self._compact_book.best_bid()
+        return self._bid_prices[-1] if self._bid_prices else None
 
     @property
     def best_ask(self) -> float | None:
-        valid_asks = [p for p, q in self.asks.items() if q > 0]
-        return min(valid_asks) if valid_asks else None
+        if self._compact_book is not None:
+            return self._compact_book.best_ask()
+        return self._ask_prices[0] if self._ask_prices else None
 
     @property
     def mid_price(self) -> float | None:
@@ -45,6 +59,9 @@ class OrderBook(OrderBookSimulator):
         """
         self.current_timestamp = update.get("timestamp", self.current_timestamp)
 
+        if self._compact_book is not None:
+            self._compact_book.process_market_update(update)
+
         self._process_side_update(update.get("bids", []), self.bids, "BUY")
         self._process_side_update(update.get("asks", []), self.asks, "SELL")
 
@@ -59,6 +76,27 @@ class OrderBook(OrderBookSimulator):
 
             old_qty = side_book.get(price, 0.0)
             side_book[price] = qty
+
+            # Maintain sorted price lists for fast top-N access
+            if side == "BUY":
+                # bids: ascending list
+                if old_qty <= 0 and qty > 0:
+                    # new level, insert
+                    bisect.insort(self._bid_prices, price)
+                elif old_qty > 0 and qty <= 0:
+                    # removed level, delete
+                    idx = bisect.bisect_left(self._bid_prices, price)
+                    if idx < len(self._bid_prices) and self._bid_prices[idx] == price:
+                        del self._bid_prices[idx]
+                # otherwise qty changed but price level stays, nothing to do for ordering
+            else:
+                # asks: ascending list
+                if old_qty <= 0 and qty > 0:
+                    bisect.insort(self._ask_prices, price)
+                elif old_qty > 0 and qty <= 0:
+                    idx = bisect.bisect_left(self._ask_prices, price)
+                    if idx < len(self._ask_prices) and self._ask_prices[idx] == price:
+                        del self._ask_prices[idx]
 
             if qty < old_qty:
                 decrease = old_qty - qty
@@ -90,6 +128,23 @@ class OrderBook(OrderBookSimulator):
         self.tracked_orders[order_id] = order
 
         self._check_crosses()
+
+    def get_top_levels(self, side: str, n: int) -> List[Tuple[float, float]]:
+        """Return top `n` (price, qty) levels for the given side.
+
+        For `BUY`, returns highest-price bids first. For `SELL`, returns
+        lowest-price asks first.
+        """
+        if self._compact_book is not None:
+            return [tuple(level) for level in self._compact_book.get_top_levels(side, n)]
+
+        if side == "BUY":
+            # take last n from ascending bid list and reverse
+            prices = self._bid_prices[-n:][::-1]
+            return [(p, self.bids.get(p, 0.0)) for p in prices]
+        else:
+            prices = self._ask_prices[:n]
+            return [(p, self.asks.get(p, 0.0)) for p in prices]
 
     def cancel_order(self, order_id: str) -> None:
         if order_id in self.tracked_orders:

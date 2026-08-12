@@ -45,3 +45,21 @@ make test
 ```bash
 make lint
 ```
+
+## Performance
+
+We included a small benchmark/profiling suite in `scripts/` to establish a baseline before any native optimizations.
+
+On the bundled sample (~64 updates) the baseline (before algorithmic feature optimizations) was:
+
+- Throughput: ~718 updates/sec
+- Median per-update latency: ~1007 µs
+- P99 per-update latency: ~2692 µs
+
+After incremental algorithmic improvements (cached best-price lookups and top-N level access), the same sample measured:
+
+- Throughput: ~2136 updates/sec
+- Median per-update latency: ~151 µs
+- P99 per-update latency: ~761 µs
+
+These numbers establish the pre-C++ baseline. See `scripts/benchmark.py` and `scripts/profile_lob.py` for reproduction steps and raw profiles (`.prof` files) saved by the profiler.

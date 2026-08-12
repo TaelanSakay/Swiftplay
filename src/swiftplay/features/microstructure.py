@@ -33,11 +33,11 @@ def order_book_imbalance(book: OrderBook, levels: int = 5) -> Optional[float]:
     """
     Returns (bid_vol - ask_vol) / (bid_vol + ask_vol) up to N levels.
     """
-    bids_sorted = sorted([p for p, q in book.bids.items() if q > 0], reverse=True)
-    asks_sorted = sorted([p for p, q in book.asks.items() if q > 0])
+    bid_levels = book.get_top_levels("BUY", levels)
+    ask_levels = book.get_top_levels("SELL", levels)
 
-    bid_vol = sum(book.bids[p] for p in bids_sorted[:levels])
-    ask_vol = sum(book.asks[p] for p in asks_sorted[:levels])
+    bid_vol = sum(q for _, q in bid_levels)
+    ask_vol = sum(q for _, q in ask_levels)
 
     total_vol = bid_vol + ask_vol
     if total_vol == 0.0:
