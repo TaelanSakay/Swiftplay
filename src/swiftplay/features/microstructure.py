@@ -16,7 +16,7 @@ def microprice(book: OrderBook) -> Optional[float]:
     bb = book.best_bid
     ba = book.best_ask
 
-    if bb is None or ba is None:
+    if bb is None or ba is None or ba <= bb:
         return None
 
     bb_size = book.bids.get(bb, 0.0)

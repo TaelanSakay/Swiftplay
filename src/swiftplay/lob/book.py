@@ -48,7 +48,7 @@ class OrderBook(OrderBookSimulator):
     def spread(self) -> float | None:
         bb = self.best_bid
         ba = self.best_ask
-        if bb is not None and ba is not None:
+        if bb is not None and ba is not None and ba > bb:
             return ba - bb
         return None
 

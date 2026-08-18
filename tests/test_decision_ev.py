@@ -56,6 +56,27 @@ def test_ev_quoting_strategy() -> None:
     assert quote_long.ask_price <= quote_neutral.ask_price
 
 
+def test_ev_skips_crossed_market() -> None:
+    strategy = EVQuotingStrategy(HeuristicFillEstimator(decay_factor=100.0))
+    state = MarketState(
+        bid_price=100.2, ask_price=100.0, bid_qty=10.0, ask_qty=10.0, timestamp=1000
+    )
+    features = FeatureSnapshot(
+        timestamp=1000,
+        imbalance=0.0,
+        microprice=None,
+        ofi=0.0,
+        spread=None,
+        realized_vol=0.01,
+    )
+
+    quote = strategy.generate_quote(state, features, inventory=0.0)
+
+    assert quote.bid_price is None
+    assert quote.ask_price is None
+    assert "crossed or locked" in quote.reasoning.explanation
+
+
 def test_inventory_aware_strategy() -> None:
     strategy = InventoryAwareStrategy(
         half_spread=1.0, quote_qty=1.0, max_inventory=10.0, skew_factor=2.0

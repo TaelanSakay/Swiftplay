@@ -1,10 +1,16 @@
-import math
 from typing import Dict, Any
 from dataclasses import dataclass
 from swiftplay.decision.interfaces import QuoteDecisionEngine
 from swiftplay.data_feed.replay import HistoricalReplayFeed
 from .engine import BacktestRunner, BacktestConfig
-from .metrics import sharpe_ratio, max_drawdown, win_rate
+from .metrics import (
+    average_inventory,
+    fill_rate as calculate_fill_rate,
+    inventory_std,
+    max_drawdown,
+    sharpe_ratio,
+    win_rate,
+)
 
 
 @dataclass
@@ -72,17 +78,10 @@ def run_comparison(
         mdd = max_drawdown(pnl_series)
         w_rate = win_rate(pnl_series)
 
-        fill_rate = 0.0
-        if runner.quotes_placed > 0:
-            fill_rate = runner.quotes_filled / runner.quotes_placed
-
-        avg_inv = sum(step.inventory for step in history) / len(history)
-
-        # Calculate inventory standard deviation
-        inv_variance = sum((step.inventory - avg_inv) ** 2 for step in history) / len(
-            history
-        )
-        inv_std = math.sqrt(inv_variance)
+        fill_rate = calculate_fill_rate(runner.filled_volume, runner.quoted_volume)
+        inventories = [step.inventory for step in history]
+        avg_inv = average_inventory(inventories)
+        inventory_deviation = inventory_std(inventories)
 
         results[name] = {
             "total_pnl": total_pnl,
@@ -91,7 +90,7 @@ def run_comparison(
             "win_rate": w_rate,
             "fill_rate": fill_rate,
             "average_inventory": avg_inv,
-            "inventory_std": inv_std,
+            "inventory_std": inventory_deviation,
         }
 
     return ComparisonResult(results=results)

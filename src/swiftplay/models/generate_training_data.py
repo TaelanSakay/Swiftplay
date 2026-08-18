@@ -10,9 +10,10 @@ Runs a backtest with FixedSpreadStrategy and records:
 
 import csv
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 from swiftplay.data_feed.replay import HistoricalReplayFeed
 from swiftplay.decision.fixed_spread import FixedSpreadStrategy
+from swiftplay.decision.interfaces import MarketState
 from swiftplay.lob.book import OrderBook
 from swiftplay.features.pipeline import FeaturePipeline
 
@@ -22,7 +23,7 @@ def generate_training_data(
     output_path: str,
     spread: float = 10.0,
     order_qty: float = 1.0,
-    fill_lookahead_ticks: int = 5,
+    fill_lookahead_ticks: int = 1,
 ) -> None:
     """
     Generate labeled training data by running a FixedSpreadStrategy backtest.
@@ -43,62 +44,81 @@ def generate_training_data(
     pipeline = FeaturePipeline()
     strategy = FixedSpreadStrategy(spread=spread, order_qty=order_qty)
 
-    # Replay the full data file and record book/feature state at each tick
-    history = []
-    for update in feed:
-        book.process_market_update(update)
-        features = pipeline.compute(book)
-        history.append((features, book.best_bid, book.best_ask))
-
     quotes_placed: List[Dict[str, Any]] = []
 
-    # Generate labels: one row per side per tick
-    for tick_idx, (features, best_bid, best_ask) in enumerate(history):
+    # Simulate the same quote lifecycle as BacktestRunner. Each row is created
+    # when a real order is placed and is labeled from fills for that order ID,
+    # rather than inferred from a future market snapshot.
+    active_rows: Dict[str, Dict[str, Any]] = {}
+    order_number = 0
+    for update in feed:
+        book.process_market_update(update)
+        fills = book.get_recent_fills()
+        for fill in fills:
+            row = active_rows.pop(fill.order_id, None)
+            if row is not None:
+                row["filled"] = 1
+                quotes_placed.append(row)
+
+        # With a one-tick horizon, an unfilled order is replaced here. For a
+        # longer horizon, retain it until its age reaches that horizon.
+        expired_ids = []
+        for order_id, row in active_rows.items():
+            row["age"] += 1
+            if row["age"] >= fill_lookahead_ticks:
+                row["filled"] = 0
+                quotes_placed.append(row)
+                expired_ids.append(order_id)
+        for order_id in expired_ids:
+            book.cancel_order(order_id)
+            del active_rows[order_id]
+
+        features = pipeline.compute(book)
+        best_bid = book.best_bid
+        best_ask = book.best_ask
         if best_bid is None or best_ask is None:
             continue
-        if features.microprice is None:
-            continue
 
+        state = MarketState(
+            bid_price=best_bid,
+            ask_price=best_ask,
+            bid_qty=book.bids.get(best_bid, 0.0),
+            ask_qty=book.asks.get(best_ask, 0.0),
+            timestamp=book.current_timestamp,
+        )
+        quote = strategy.generate_quote(state, features, 0.0)
         mid_price = (best_bid + best_ask) / 2.0
-        bid_quote_price = mid_price - strategy.spread / 2.0
-        ask_quote_price = mid_price + strategy.spread / 2.0
-
-        # Check if bid filled in lookahead window
-        bid_filled = 0
-        for j in range(1, min(fill_lookahead_ticks + 1, len(history) - tick_idx)):
-            future_features, future_best_bid, future_best_ask = history[tick_idx + j]
-            if future_best_ask is not None and future_best_ask <= bid_quote_price:
-                bid_filled = 1
-                break
-
-        # Check if ask filled in lookahead window
-        ask_filled = 0
-        for j in range(1, min(fill_lookahead_ticks + 1, len(history) - tick_idx)):
-            future_features, future_best_bid, future_best_ask = history[tick_idx + j]
-            if future_best_bid is not None and future_best_bid >= ask_quote_price:
-                ask_filled = 1
-                break
-
         common = {
-            "microprice": features.microprice,
+            "microprice": features.microprice or mid_price,
             "spread": features.spread or 0.0,
             "imbalance": features.imbalance or 0.0,
             "ofi": features.ofi or 0.0,
             "realized_vol": features.realized_vol or 0.0,
         }
 
-        # One row for the bid side
-        quotes_placed.append({
-            **common,
-            "distance_from_mid": mid_price - bid_quote_price,
-            "filled": bid_filled,
-        })
-        # One row for the ask side
-        quotes_placed.append({
-            **common,
-            "distance_from_mid": ask_quote_price - mid_price,
-            "filled": ask_filled,
-        })
+        order_number += 1
+        if quote.bid_price is not None and quote.bid_qty is not None and quote.bid_qty > 0:
+            order_id = f"TRAIN_BID_{order_number}"
+            book.place_order(order_id, "BUY", quote.bid_price, quote.bid_qty)
+            active_rows[order_id] = {
+                **common,
+                "distance_from_mid": abs(quote.bid_price - mid_price),
+                "filled": 0,
+                "age": 0,
+            }
+        if quote.ask_price is not None and quote.ask_qty is not None and quote.ask_qty > 0:
+            order_id = f"TRAIN_ASK_{order_number}"
+            book.place_order(order_id, "SELL", quote.ask_price, quote.ask_qty)
+            active_rows[order_id] = {
+                **common,
+                "distance_from_mid": abs(quote.ask_price - mid_price),
+                "filled": 0,
+                "age": 0,
+            }
+
+    for row in active_rows.values():
+        row["filled"] = 0
+        quotes_placed.append(row)
 
     # Write CSV
     with open(output_path, "w", newline="") as f:
@@ -116,6 +136,7 @@ def generate_training_data(
         )
         writer.writeheader()
         for record in quotes_placed:
+            record.pop("age", None)
             writer.writerow(record)
 
     print(f"Generated {len(quotes_placed)} training examples -> {output_path}")
@@ -146,7 +167,7 @@ def main() -> None:
     parser.add_argument(
         "--lookahead-ticks",
         type=int,
-        default=5,
+        default=1,
         help="Ticks ahead to check for fill",
     )
     args = parser.parse_args()

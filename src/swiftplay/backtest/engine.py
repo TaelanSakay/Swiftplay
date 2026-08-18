@@ -42,6 +42,8 @@ class BacktestRunner:
 
         self.quotes_placed = 0
         self.quotes_filled = 0
+        self.quoted_volume = 0.0
+        self.filled_volume = 0.0
 
         self.history: List[StepRecord] = []
 
@@ -60,6 +62,7 @@ class BacktestRunner:
             fills = self.book.get_recent_fills()
             for fill in fills:
                 self.quotes_filled += 1
+                self.filled_volume += fill.fill_quantity
                 if fill.order_id.startswith("BID_"):
                     self.inventory += fill.fill_quantity
                     self.cash -= fill.fill_price * fill.fill_quantity
@@ -113,6 +116,7 @@ class BacktestRunner:
                         active_bid_id, "BUY", quote.bid_price, quote.bid_qty
                     )
                     self.quotes_placed += 1
+                    self.quoted_volume += quote.bid_qty
 
                 if (
                     quote.ask_price is not None
@@ -123,5 +127,6 @@ class BacktestRunner:
                         active_ask_id, "SELL", quote.ask_price, quote.ask_qty
                     )
                     self.quotes_placed += 1
+                    self.quoted_volume += quote.ask_qty
 
         return self.history

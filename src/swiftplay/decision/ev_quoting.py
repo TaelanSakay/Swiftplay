@@ -34,6 +34,23 @@ class EVQuotingStrategy(QuoteDecisionEngine):
     def generate_quote(
         self, state: MarketState, features: FeatureSnapshot, inventory: float
     ) -> Quote:
+        if state.bid_price >= state.ask_price:
+            reasoning = QuoteReasoning(
+                expected_value=0.0,
+                fill_probability_bid=0.0,
+                fill_probability_ask=0.0,
+                inventory_penalty=0.0,
+                confidence=0.0,
+                explanation="Skipped quote because the market book is crossed or locked.",
+            )
+            return Quote(
+                bid_price=None,
+                ask_price=None,
+                bid_qty=None,
+                ask_qty=None,
+                reasoning=reasoning,
+            )
+
         ref_price = features.microprice
         if ref_price is None:
             ref_price = (state.bid_price + state.ask_price) / 2.0
@@ -78,15 +95,29 @@ class EVQuotingStrategy(QuoteDecisionEngine):
             expected_value=best_bid_ev + best_ask_ev,
             fill_probability_bid=best_bid_prob,
             fill_probability_ask=best_ask_prob,
-            inventory_penalty=bid_penalty + ask_penalty,
+            inventory_penalty=max(abs(bid_penalty), abs(ask_penalty)),
             confidence=confidence,
             explanation=explanation,
         )
 
+        # Treat max_inventory as a hard execution limit. The EV penalty is a
+        # preference signal; it cannot by itself prevent repeated fills from
+        # accumulating an unbounded position.
+        bid_qty = self.quote_qty
+        ask_qty = self.quote_qty
+        if inventory >= self.max_inventory:
+            bid_qty = 0.0
+        elif inventory + bid_qty > self.max_inventory:
+            bid_qty = self.max_inventory - inventory
+        if inventory <= -self.max_inventory:
+            ask_qty = 0.0
+        elif inventory - ask_qty < -self.max_inventory:
+            ask_qty = self.max_inventory + inventory
+
         return Quote(
             bid_price=best_bid_price,
             ask_price=best_ask_price,
-            bid_qty=self.quote_qty,
-            ask_qty=self.quote_qty,
+            bid_qty=bid_qty,
+            ask_qty=ask_qty,
             reasoning=reasoning,
         )
