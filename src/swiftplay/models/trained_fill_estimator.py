@@ -28,6 +28,8 @@ class TrainedFillProbabilityEstimator(FillProbabilityEstimator):
             "spread",
             "imbalance",
             "ofi",
+            "imbalance_signed",
+            "ofi_signed",
             "realized_vol",
             "distance_from_mid",
         ]
@@ -57,6 +59,40 @@ class TrainedFillProbabilityEstimator(FillProbabilityEstimator):
 
         print(f"Loaded {model_name} from {model_path}")
 
+    def _signed_value(self, value: float, side: str) -> float:
+        if side == "BUY":
+            return value
+        if side == "SELL":
+            return -value
+        return value
+
+    def _feature_vector_for_side(
+        self,
+        state: MarketState,
+        features: FeatureSnapshot,
+        quote_price: float,
+        side: str,
+    ) -> dict[str, float]:
+        if features.microprice is not None:
+            ref_price = features.microprice
+        else:
+            ref_price = (state.bid_price + state.ask_price) / 2.0
+
+        distance_from_mid = abs(quote_price - ref_price)
+        imbalance_signed = self._signed_value(features.imbalance or 0.0, side)
+        ofi_signed = self._signed_value(features.ofi, side)
+
+        return {
+            "microprice": features.microprice or ref_price,
+            "spread": features.spread or 0.0,
+            "imbalance": features.imbalance or 0.0,
+            "ofi": features.ofi,
+            "imbalance_signed": imbalance_signed,
+            "ofi_signed": ofi_signed,
+            "realized_vol": features.realized_vol or 0.0,
+            "distance_from_mid": distance_from_mid,
+        }
+
     def estimate(
         self,
         state: MarketState,
@@ -68,34 +104,24 @@ class TrainedFillProbabilityEstimator(FillProbabilityEstimator):
         Estimate fill probability using the trained model.
         """
         if self.model is None or self.scaler is None:
-            # Fallback if model didn't load
             return 0.5
 
-        # Compute distance from mid price
-        if features.microprice is not None:
-            ref_price = features.microprice
-        else:
-            ref_price = (state.bid_price + state.ask_price) / 2.0
-
-        distance_from_mid = abs(quote_price - ref_price)
-
-        # Prepare feature vector
+        feature_dict = self._feature_vector_for_side(state, features, quote_price, side)
         feature_vector = np.array(
             [
                 [
-                    features.microprice or ref_price,
-                    features.spread or 0.0,
-                    features.imbalance or 0.0,
-                    features.ofi,
-                    features.realized_vol or 0.0,
-                    distance_from_mid,
+                    feature_dict["microprice"],
+                    feature_dict["spread"],
+                    feature_dict["imbalance"],
+                    feature_dict["ofi"],
+                    feature_dict["imbalance_signed"],
+                    feature_dict["ofi_signed"],
+                    feature_dict["realized_vol"],
+                    feature_dict["distance_from_mid"],
                 ]
             ]
         )
 
-        # Scale and predict
         feature_vector_scaled = self.scaler.transform(feature_vector)
         probability = self.model.predict_proba(feature_vector_scaled)[0, 1]
-
-        # Clip to valid range
         return float(np.clip(probability, 0.0, 1.0))

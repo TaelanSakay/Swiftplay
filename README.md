@@ -65,6 +65,16 @@ After incremental algorithmic improvements (cached best-price lookups and top-N 
 
 These numbers establish the pre-C++ baseline. See `scripts/benchmark.py` and `scripts/profile_lob.py` for reproduction steps and raw profiles (`.prof` files) saved by the profiler.
 
+## Results
+
+### Performance Visualization
+
+The plots below summarize the current clean, synchronized BTCUSD replay session. The strategy comparison panel illustrates the divergence across strategies over time, while the EV quote plot emphasizes the safety-oriented behavior of the crossed-market guard: when the book becomes invalid or ill-posed, the EV quoting engine intentionally skips quoting rather than publishing an invalid crossed bid/ask. That reduces quoting opportunities and therefore lowers cumulative PnL relative to simpler baselines, but it materially improves robustness and validity on real data.
+
+![Strategy Comparison](docs/backtest_strategy_comparison.png)
+
+![EV Quoting PnL and Inventory](docs/backtest_pnl_inventory.png)
+
 ## Fill Probability Model
 
 The fill model is trained from `FixedSpreadStrategy` replay examples in `data/training/fill_labels.csv`. Each quote side contributes one example containing distance from mid, spread, order-book imbalance, OFI, and realized volatility. The label is whether the quote crossed within the next tick. Training uses a time-based 80/20 split so later observations remain held out.

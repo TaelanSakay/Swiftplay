@@ -102,6 +102,8 @@ def generate_training_data(
             book.place_order(order_id, "BUY", quote.bid_price, quote.bid_qty)
             active_rows[order_id] = {
                 **common,
+                "ofi_signed": common["ofi"],
+                "imbalance_signed": common["imbalance"],
                 "distance_from_mid": abs(quote.bid_price - mid_price),
                 "filled": 0,
                 "age": 0,
@@ -111,6 +113,8 @@ def generate_training_data(
             book.place_order(order_id, "SELL", quote.ask_price, quote.ask_qty)
             active_rows[order_id] = {
                 **common,
+                "ofi_signed": -common["ofi"],
+                "imbalance_signed": -common["imbalance"],
                 "distance_from_mid": abs(quote.ask_price - mid_price),
                 "filled": 0,
                 "age": 0,
@@ -129,6 +133,8 @@ def generate_training_data(
                 "spread",
                 "imbalance",
                 "ofi",
+                "imbalance_signed",
+                "ofi_signed",
                 "realized_vol",
                 "distance_from_mid",
                 "filled",

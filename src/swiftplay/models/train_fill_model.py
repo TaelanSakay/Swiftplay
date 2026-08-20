@@ -77,7 +77,16 @@ def train_models(
 
     print(f"Total examples: {len(df)}")
 
-    feature_cols = ["microprice", "spread", "imbalance", "ofi", "realized_vol", "distance_from_mid"]
+    feature_cols = [
+        "microprice",
+        "spread",
+        "imbalance",
+        "ofi",
+        "imbalance_signed",
+        "ofi_signed",
+        "realized_vol",
+        "distance_from_mid",
+    ]
 
     X_all = df[feature_cols].values
     y_all = df["filled"].values

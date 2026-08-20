@@ -23,6 +23,7 @@ class EVQuotingStrategy(QuoteDecisionEngine):
         risk_aversion: float = 1.0,
         tick_size: float = 0.1,
         levels_to_scan: int = 10,
+        min_quantity_scale: float = 0.3,
     ):
         self.fill_estimator = fill_estimator
         self.quote_qty = quote_qty
@@ -30,6 +31,7 @@ class EVQuotingStrategy(QuoteDecisionEngine):
         self.risk_aversion = risk_aversion
         self.tick_size = tick_size
         self.levels_to_scan = levels_to_scan
+        self.min_quantity_scale = min_quantity_scale
 
     def generate_quote(
         self, state: MarketState, features: FeatureSnapshot, inventory: float
@@ -100,11 +102,13 @@ class EVQuotingStrategy(QuoteDecisionEngine):
             explanation=explanation,
         )
 
-        # Treat max_inventory as a hard execution limit. The EV penalty is a
-        # preference signal; it cannot by itself prevent repeated fills from
-        # accumulating an unbounded position.
-        bid_qty = self.quote_qty
-        ask_qty = self.quote_qty
+        # Confidence scales size by a configurable floor, but inventory still
+        # remains the hard ceiling. This keeps low-confidence quotes from
+        # shrinking all the way to zero while preserving the existing max
+        # inventory guard as the final constraint.
+        bid_qty = self.quote_qty * max(self.min_quantity_scale, min(1.0, confidence))
+        ask_qty = self.quote_qty * max(self.min_quantity_scale, min(1.0, confidence))
+
         if inventory >= self.max_inventory:
             bid_qty = 0.0
         elif inventory + bid_qty > self.max_inventory:
@@ -113,6 +117,9 @@ class EVQuotingStrategy(QuoteDecisionEngine):
             ask_qty = 0.0
         elif inventory - ask_qty < -self.max_inventory:
             ask_qty = self.max_inventory + inventory
+
+        bid_qty = max(0.0, bid_qty)
+        ask_qty = max(0.0, ask_qty)
 
         return Quote(
             bid_price=best_bid_price,

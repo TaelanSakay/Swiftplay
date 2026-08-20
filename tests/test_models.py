@@ -1,6 +1,7 @@
 import math
 import os
 
+import numpy as np
 import pytest
 
 from swiftplay.backtest.compare import run_comparison
@@ -21,6 +22,36 @@ SAMPLE_PATH = "data/sample_btcusd_depth.jsonl"
     not os.path.exists(os.path.join(ARTIFACT_DIR, "model_summary.pkl")),
     reason="trained model artifact is not available",
 )
+def test_signed_imbalance_and_ofi_features_flip_by_side() -> None:
+    estimator = TrainedFillProbabilityEstimator(ARTIFACT_DIR)
+    state = MarketState(
+        bid_price=100.0,
+        ask_price=101.0,
+        bid_qty=5.0,
+        ask_qty=4.0,
+        timestamp=1,
+    )
+    features = FeatureSnapshot(
+        timestamp=1,
+        imbalance=0.3,
+        microprice=100.5,
+        ofi=0.8,
+        spread=1.0,
+        realized_vol=0.02,
+    )
+
+    bid_features = estimator._feature_vector_for_side(state, features, 99.8, "BUY")
+    ask_features = estimator._feature_vector_for_side(state, features, 101.2, "SELL")
+
+    assert np.isclose(bid_features["ofi_signed"], 0.8)
+    assert np.isclose(ask_features["ofi_signed"], -0.8)
+    assert np.isclose(bid_features["imbalance_signed"], 0.3)
+    assert np.isclose(ask_features["imbalance_signed"], -0.3)
+
+    assert bid_features["ofi_signed"] == features.ofi
+    assert ask_features["ofi_signed"] == -features.ofi
+
+
 def test_trained_estimator_returns_probability() -> None:
     estimator = TrainedFillProbabilityEstimator(ARTIFACT_DIR)
     state = MarketState(

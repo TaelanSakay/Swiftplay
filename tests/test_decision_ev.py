@@ -77,6 +77,58 @@ def test_ev_skips_crossed_market() -> None:
     assert "crossed or locked" in quote.reasoning.explanation
 
 
+def test_confidence_based_sizing_scales_down_without_going_below_floor() -> None:
+    strategy = EVQuotingStrategy(
+        fill_estimator=HeuristicFillEstimator(decay_factor=100.0),
+        quote_qty=4.0,
+        max_inventory=10.0,
+        min_quantity_scale=0.3,
+    )
+
+    state = MarketState(
+        bid_price=100.0, ask_price=100.2, bid_qty=10.0, ask_qty=10.0, timestamp=1000
+    )
+    features = FeatureSnapshot(
+        timestamp=1000,
+        imbalance=0.0,
+        microprice=100.1,
+        ofi=0.0,
+        spread=0.2,
+        realized_vol=0.01,
+    )
+
+    low_confidence = strategy.generate_quote(state, features, inventory=0.0)
+    assert low_confidence.bid_qty is not None
+    assert low_confidence.ask_qty is not None
+    assert low_confidence.bid_qty >= 1.2
+    assert low_confidence.ask_qty >= 1.2
+
+    # A higher-confidence quote should use a larger size than the floor.
+    strategy_with_high_confidence = EVQuotingStrategy(
+        fill_estimator=HeuristicFillEstimator(decay_factor=100.0),
+        quote_qty=4.0,
+        max_inventory=10.0,
+        min_quantity_scale=0.3,
+    )
+    quote = strategy_with_high_confidence.generate_quote(state, features, inventory=0.0)
+    assert quote.bid_qty is not None
+    assert quote.ask_qty is not None
+    assert quote.bid_qty <= 4.0
+    assert quote.ask_qty <= 4.0
+
+    inventory_cap_limit = EVQuotingStrategy(
+        fill_estimator=HeuristicFillEstimator(decay_factor=100.0),
+        quote_qty=10.0,
+        max_inventory=3.0,
+        min_quantity_scale=0.3,
+    )
+    capped = inventory_cap_limit.generate_quote(state, features, inventory=2.5)
+    assert capped.bid_qty is not None
+    assert capped.ask_qty is not None
+    assert capped.bid_qty <= 3.0 - 2.5
+    assert capped.ask_qty <= 3.0 + 2.5
+
+
 def test_inventory_aware_strategy() -> None:
     strategy = InventoryAwareStrategy(
         half_spread=1.0, quote_qty=1.0, max_inventory=10.0, skew_factor=2.0
