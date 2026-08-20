@@ -29,6 +29,9 @@ class ComparisonResult:
             "Win Rate",
             "Fill Rate",
             "Avg Inv",
+            "Max Abs Inv",
+            "Breaker",
+            "Invalid Quotes",
         ]
 
         # Format rows
@@ -42,6 +45,9 @@ class ComparisonResult:
                 f"{metrics.get('win_rate', 0.0) * 100:.1f}%",
                 f"{metrics.get('fill_rate', 0.0) * 100:.2f}%",
                 f"{metrics.get('average_inventory', 0.0):.2f}",
+                f"{metrics.get('max_abs_inventory', 0.0):.2f}",
+                "active" if metrics.get("circuit_breaker_active", False) else "inactive",
+                str(metrics.get("invalid_quotes", 0)),
             ]
             rows.append(row)
 
@@ -82,6 +88,7 @@ def run_comparison(
         inventories = [step.inventory for step in history]
         avg_inv = average_inventory(inventories)
         inventory_deviation = inventory_std(inventories)
+        max_abs_inventory = max((abs(value) for value in inventories), default=0.0)
 
         results[name] = {
             "total_pnl": total_pnl,
@@ -91,6 +98,9 @@ def run_comparison(
             "fill_rate": fill_rate,
             "average_inventory": avg_inv,
             "inventory_std": inventory_deviation,
+            "max_abs_inventory": max_abs_inventory,
+            "circuit_breaker_active": runner.risk_manager.circuit_breaker_active,
+            "invalid_quotes": runner.invalid_quotes,
         }
 
     return ComparisonResult(results=results)

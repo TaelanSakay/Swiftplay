@@ -1,10 +1,12 @@
 from typing import List
 from dataclasses import dataclass
+from typing import Optional
 from swiftplay.data_feed.interfaces import DataFeed
 from swiftplay.lob.book import OrderBook
 from swiftplay.lob.fills import FillEvent
 from swiftplay.features.pipeline import FeaturePipeline
 from swiftplay.decision.interfaces import QuoteDecisionEngine, MarketState
+from swiftplay.risk import RiskManager
 
 
 @dataclass
@@ -12,6 +14,7 @@ class BacktestConfig:
     initial_capital: float = 100000.0
     vol_window: int = 20
     imb_levels: int = 5
+    risk_manager: Optional[RiskManager] = None
 
 
 @dataclass
@@ -39,11 +42,13 @@ class BacktestRunner:
 
         self.cash = config.initial_capital
         self.inventory = 0.0
+        self.risk_manager = config.risk_manager or RiskManager(config.initial_capital)
 
         self.quotes_placed = 0
         self.quotes_filled = 0
         self.quoted_volume = 0.0
         self.filled_volume = 0.0
+        self.invalid_quotes = 0
 
         self.history: List[StepRecord] = []
 
@@ -74,6 +79,8 @@ class BacktestRunner:
             mid_price = self.book.mid_price or 0.0
             unrealized = self.inventory * mid_price
             pnl = (self.cash + unrealized) - self.config.initial_capital
+            equity = self.cash + unrealized
+            self.risk_manager.update_equity(equity)
 
             self.history.append(
                 StepRecord(
@@ -97,6 +104,15 @@ class BacktestRunner:
                 )
 
                 quote = self.strategy.generate_quote(state, features, self.inventory)
+                quote = self.risk_manager.apply(
+                    quote, state, features, self.inventory, equity
+                )
+                if (
+                    quote.bid_price is not None
+                    and quote.ask_price is not None
+                    and quote.bid_price >= quote.ask_price
+                ):
+                    self.invalid_quotes += 1
 
                 # Replace resting orders
                 if active_bid_id:
