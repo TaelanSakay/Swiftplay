@@ -24,6 +24,7 @@ class EVQuotingStrategy(QuoteDecisionEngine):
         tick_size: float = 0.1,
         levels_to_scan: int = 10,
         min_quantity_scale: float = 0.3,
+        adverse_selection_coefficient: float = 10.0,
     ):
         self.fill_estimator = fill_estimator
         self.quote_qty = quote_qty
@@ -32,6 +33,7 @@ class EVQuotingStrategy(QuoteDecisionEngine):
         self.tick_size = tick_size
         self.levels_to_scan = levels_to_scan
         self.min_quantity_scale = min_quantity_scale
+        self.adverse_selection_coefficient = adverse_selection_coefficient
 
     def generate_quote(
         self, state: MarketState, features: FeatureSnapshot, inventory: float
@@ -43,7 +45,9 @@ class EVQuotingStrategy(QuoteDecisionEngine):
                 fill_probability_ask=0.0,
                 inventory_penalty=0.0,
                 confidence=0.0,
-                explanation="Skipped quote because the market book is crossed or locked.",
+                explanation=(
+                    "Skipped quote because the market book is crossed or locked."
+                ),
             )
             return Quote(
                 bid_price=None,
@@ -64,11 +68,16 @@ class EVQuotingStrategy(QuoteDecisionEngine):
         bid_penalty = compute_inventory_penalty(
             inventory, self.max_inventory, "BUY", self.risk_aversion
         )
+        # Positive OFI is buy pressure: a resting bid is more likely to be
+        # picked off before price rises. Imbalance could be added similarly.
+        bid_adverse_penalty = self.adverse_selection_coefficient * max(
+            0.0, features.ofi
+        )
         for i in range(self.levels_to_scan):
             price = state.bid_price - (i * self.tick_size)
             prob = self.fill_estimator.estimate(state, features, price, "BUY")
             edge = ref_price - price
-            ev = (prob * edge) - bid_penalty
+            ev = (prob * edge) - bid_penalty - bid_adverse_penalty
             if ev > best_bid_ev:
                 best_bid_ev, best_bid_price, best_bid_prob = ev, price, prob
 
@@ -76,11 +85,14 @@ class EVQuotingStrategy(QuoteDecisionEngine):
         ask_penalty = compute_inventory_penalty(
             inventory, self.max_inventory, "SELL", self.risk_aversion
         )
+        ask_adverse_penalty = self.adverse_selection_coefficient * max(
+            0.0, -features.ofi
+        )
         for i in range(self.levels_to_scan):
             price = state.ask_price + (i * self.tick_size)
             prob = self.fill_estimator.estimate(state, features, price, "SELL")
             edge = price - ref_price
-            ev = (prob * edge) - ask_penalty
+            ev = (prob * edge) - ask_penalty - ask_adverse_penalty
             if ev > best_ask_ev:
                 best_ask_ev, best_ask_price, best_ask_prob = ev, price, prob
 
@@ -100,6 +112,9 @@ class EVQuotingStrategy(QuoteDecisionEngine):
             inventory_penalty=max(abs(bid_penalty), abs(ask_penalty)),
             confidence=confidence,
             explanation=explanation,
+            adverse_selection_penalty=bid_adverse_penalty + ask_adverse_penalty,
+            adverse_selection_penalty_bid=bid_adverse_penalty,
+            adverse_selection_penalty_ask=ask_adverse_penalty,
         )
 
         # Confidence scales size by a configurable floor, but inventory still

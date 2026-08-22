@@ -38,7 +38,9 @@ def main() -> None:
     )
 
     # Benchmark command
-    benchmark_parser = subparsers.add_parser("benchmark", help="Run benchmark on market data")
+    benchmark_parser = subparsers.add_parser(
+        "benchmark", help="Run benchmark on market data"
+    )
     benchmark_parser.add_argument(
         "--data",
         type=str,
@@ -105,10 +107,14 @@ def main() -> None:
 
         import subprocess
 
-        benchmark_script = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "benchmark.py")
+        benchmark_script = os.path.join(
+            os.path.dirname(__file__), "..", "..", "scripts", "benchmark.py"
+        )
         benchmark_script = os.path.abspath(benchmark_script)
 
-        subprocess.run([sys.executable, benchmark_script, "--data", args.data], check=True)
+        subprocess.run(
+            [sys.executable, benchmark_script, "--data", args.data], check=True
+        )
 
     else:
         parser.print_help()

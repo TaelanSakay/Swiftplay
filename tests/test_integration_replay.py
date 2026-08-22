@@ -57,10 +57,9 @@ def test_integration_data_feed_to_lob() -> None:
 
     finally:
         # Ensure generator is closed so the file handle is released on Windows
-        try:
-            feed_iterator.close()
-        except Exception:
-            pass
+        close_iterator = getattr(feed_iterator, "close", None)
+        if callable(close_iterator):
+            close_iterator()
 
         try:
             os.remove(file_path)

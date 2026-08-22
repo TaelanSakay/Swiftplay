@@ -23,6 +23,9 @@ class QuoteReasoning:
     inventory_penalty: float
     confidence: float
     explanation: str
+    adverse_selection_penalty: float = 0.0
+    adverse_selection_penalty_bid: float = 0.0
+    adverse_selection_penalty_ask: float = 0.0
 
 
 @dataclass

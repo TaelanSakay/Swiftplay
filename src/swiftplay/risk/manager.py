@@ -49,7 +49,9 @@ class RiskManager:
     ) -> Quote:
         self.update_equity(equity)
         if self.circuit_breaker_active:
-            return replace(quote, bid_price=None, ask_price=None, bid_qty=None, ask_qty=None)
+            return replace(
+                quote, bid_price=None, ask_price=None, bid_qty=None, ask_qty=None
+            )
 
         bid_qty = quote.bid_qty
         ask_qty = quote.ask_qty

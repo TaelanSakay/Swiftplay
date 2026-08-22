@@ -77,6 +77,48 @@ def test_ev_skips_crossed_market() -> None:
     assert "crossed or locked" in quote.reasoning.explanation
 
 
+def test_ev_adverse_selection_penalty_follows_ofi_direction() -> None:
+    strategy = EVQuotingStrategy(
+        fill_estimator=HeuristicFillEstimator(decay_factor=100.0),
+        adverse_selection_coefficient=10.0,
+    )
+    state = MarketState(
+        bid_price=100.0, ask_price=100.2, bid_qty=10.0, ask_qty=10.0, timestamp=1000
+    )
+
+    positive_ofi = FeatureSnapshot(
+        timestamp=1000,
+        imbalance=0.0,
+        microprice=100.1,
+        ofi=0.05,
+        spread=0.2,
+        realized_vol=0.01,
+    )
+    positive_quote = strategy.generate_quote(state, positive_ofi, inventory=0.0)
+    assert positive_quote.reasoning.adverse_selection_penalty_bid == 0.5
+    assert positive_quote.reasoning.adverse_selection_penalty_ask == 0.0
+    assert positive_quote.reasoning.adverse_selection_penalty == 0.5
+    assert positive_quote.bid_price is not None
+    assert positive_quote.ask_price is not None
+    assert positive_quote.bid_price < positive_quote.ask_price
+
+    negative_ofi = FeatureSnapshot(
+        timestamp=1000,
+        imbalance=0.0,
+        microprice=100.1,
+        ofi=-0.05,
+        spread=0.2,
+        realized_vol=0.01,
+    )
+    negative_quote = strategy.generate_quote(state, negative_ofi, inventory=0.0)
+    assert negative_quote.reasoning.adverse_selection_penalty_bid == 0.0
+    assert negative_quote.reasoning.adverse_selection_penalty_ask == 0.5
+    assert negative_quote.reasoning.adverse_selection_penalty == 0.5
+    assert negative_quote.bid_price is not None
+    assert negative_quote.ask_price is not None
+    assert negative_quote.bid_price < negative_quote.ask_price
+
+
 def test_confidence_based_sizing_scales_down_without_going_below_floor() -> None:
     strategy = EVQuotingStrategy(
         fill_estimator=HeuristicFillEstimator(decay_factor=100.0),

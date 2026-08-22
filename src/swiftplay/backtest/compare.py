@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any, Dict, Mapping
 from dataclasses import dataclass
 from swiftplay.decision.interfaces import QuoteDecisionEngine
 from swiftplay.data_feed.replay import HistoricalReplayFeed
@@ -46,7 +46,11 @@ class ComparisonResult:
                 f"{metrics.get('fill_rate', 0.0) * 100:.2f}%",
                 f"{metrics.get('average_inventory', 0.0):.2f}",
                 f"{metrics.get('max_abs_inventory', 0.0):.2f}",
-                "active" if metrics.get("circuit_breaker_active", False) else "inactive",
+                (
+                    "active"
+                    if metrics.get("circuit_breaker_active", False)
+                    else "inactive"
+                ),
                 str(metrics.get("invalid_quotes", 0)),
             ]
             rows.append(row)
@@ -63,7 +67,7 @@ class ComparisonResult:
 
 
 def run_comparison(
-    strategies: Dict[str, QuoteDecisionEngine],
+    strategies: Mapping[str, QuoteDecisionEngine],
     data_feed_path: str,
     config: BacktestConfig,
 ) -> ComparisonResult:

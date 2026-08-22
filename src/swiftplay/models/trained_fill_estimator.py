@@ -7,7 +7,6 @@ Loads a trained model and uses it as a drop-in replacement for the heuristic est
 
 import os
 import pickle
-from pathlib import Path
 import numpy as np
 from swiftplay.decision.interfaces import FillProbabilityEstimator, MarketState
 from swiftplay.features.pipeline import FeatureSnapshot
@@ -16,7 +15,7 @@ from swiftplay.features.pipeline import FeatureSnapshot
 class TrainedFillProbabilityEstimator(FillProbabilityEstimator):
     """
     A trained ML model for fill probability estimation.
-    Replaces the heuristic estimator with a logistic regression or gradient boosting model.
+    Replaces the heuristic estimator with logistic regression or gradient boosting.
     """
 
     def __init__(self, model_dir: str = "src/swiftplay/models/artifacts"):

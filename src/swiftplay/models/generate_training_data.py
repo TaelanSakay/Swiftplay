@@ -97,7 +97,11 @@ def generate_training_data(
         }
 
         order_number += 1
-        if quote.bid_price is not None and quote.bid_qty is not None and quote.bid_qty > 0:
+        if (
+            quote.bid_price is not None
+            and quote.bid_qty is not None
+            and quote.bid_qty > 0
+        ):
             order_id = f"TRAIN_BID_{order_number}"
             book.place_order(order_id, "BUY", quote.bid_price, quote.bid_qty)
             active_rows[order_id] = {
@@ -108,7 +112,11 @@ def generate_training_data(
                 "filled": 0,
                 "age": 0,
             }
-        if quote.ask_price is not None and quote.ask_qty is not None and quote.ask_qty > 0:
+        if (
+            quote.ask_price is not None
+            and quote.ask_qty is not None
+            and quote.ask_qty > 0
+        ):
             order_id = f"TRAIN_ASK_{order_number}"
             book.place_order(order_id, "SELL", quote.ask_price, quote.ask_qty)
             active_rows[order_id] = {
@@ -151,7 +159,9 @@ def generate_training_data(
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate fill probability training data")
+    parser = argparse.ArgumentParser(
+        description="Generate fill probability training data"
+    )
     parser.add_argument(
         "--data",
         type=str,

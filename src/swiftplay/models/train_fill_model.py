@@ -8,6 +8,8 @@ Saves the best model and reports calibration metrics.
 
 import os
 import pickle
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -16,7 +18,9 @@ from sklearn.metrics import roc_auc_score, log_loss
 from sklearn.preprocessing import StandardScaler
 
 
-def calibration_check(y_true, y_pred_proba, n_bins=10):
+def calibration_check(
+    y_true: Any, y_pred_proba: Any, n_bins: int = 10
+) -> tuple[float, list[dict[str, Any]]]:
     """
     Compute calibration metrics: bin predictions into deciles and compare
     predicted vs actual fill rate per bin.
@@ -117,7 +121,9 @@ def train_models(
     print(f"  Mean Calibration Error: {lr_mce:.4f}")
 
     print("\nTraining Gradient Boosting...")
-    gb_model = GradientBoostingClassifier(n_estimators=100, random_state=42, max_depth=5)
+    gb_model = GradientBoostingClassifier(
+        n_estimators=100, random_state=42, max_depth=5
+    )
     gb_model.fit(X_train_scaled, y_train)
     gb_preds = gb_model.predict_proba(X_test_scaled)[:, 1]
     gb_auc = roc_auc_score(y_test, gb_preds)
@@ -131,12 +137,18 @@ def train_models(
     print("\n=== Calibration Check (Logistic Regression) ===")
     print("Bin | Predicted | Actual | Count")
     for item in lr_calib:
-        print(f"{item['bin']:2d}  | {item['predicted']:.3f}     | {item['actual']:.3f}  | {item['count']:4d}")
+        print(
+            f"{item['bin']:2d}  | {item['predicted']:.3f}     | "
+            f"{item['actual']:.3f}  | {item['count']:4d}"
+        )
 
     print("\n=== Calibration Check (Gradient Boosting) ===")
     print("Bin | Predicted | Actual | Count")
     for item in gb_calib:
-        print(f"{item['bin']:2d}  | {item['predicted']:.3f}     | {item['actual']:.3f}  | {item['count']:4d}")
+        print(
+            f"{item['bin']:2d}  | {item['predicted']:.3f}     | "
+            f"{item['actual']:.3f}  | {item['count']:4d}"
+        )
 
     if gb_auc > lr_auc:
         print("\n✓ Gradient Boosting selected (higher AUC)")

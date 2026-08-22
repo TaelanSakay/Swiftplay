@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 import bisect
 from .interfaces import OrderBookSimulator
 from .fills import FillEvent
@@ -18,7 +18,7 @@ class OrderBook(OrderBookSimulator):
         self.recent_fills: List[FillEvent] = []
         self.current_timestamp: int = 0
         self._compact_book = _CompactBook() if _CompactBook is not None else None
-        # Maintain sorted price lists for fast top-N queries when the C++ extension is unavailable.
+        # Maintain sorted prices for fast top-N queries without C++.
         # `bid_prices` is kept in ascending order; best bid is bid_prices[-1]
         # `ask_prices` is kept in ascending order; best ask is ask_prices[0]
         self._bid_prices: List[float] = []
@@ -27,13 +27,13 @@ class OrderBook(OrderBookSimulator):
     @property
     def best_bid(self) -> float | None:
         if self._compact_book is not None:
-            return self._compact_book.best_bid()
+            return cast(float, self._compact_book.best_bid())
         return self._bid_prices[-1] if self._bid_prices else None
 
     @property
     def best_ask(self) -> float | None:
         if self._compact_book is not None:
-            return self._compact_book.best_ask()
+            return cast(float, self._compact_book.best_ask())
         return self._ask_prices[0] if self._ask_prices else None
 
     @property
@@ -88,7 +88,7 @@ class OrderBook(OrderBookSimulator):
                     idx = bisect.bisect_left(self._bid_prices, price)
                     if idx < len(self._bid_prices) and self._bid_prices[idx] == price:
                         del self._bid_prices[idx]
-                # otherwise qty changed but price level stays, nothing to do for ordering
+                # Quantity changed but price level remains ordered.
             else:
                 # asks: ascending list
                 if old_qty <= 0 and qty > 0:
@@ -136,7 +136,9 @@ class OrderBook(OrderBookSimulator):
         lowest-price asks first.
         """
         if self._compact_book is not None:
-            return [tuple(level) for level in self._compact_book.get_top_levels(side, n)]
+            return [
+                tuple(level) for level in self._compact_book.get_top_levels(side, n)
+            ]
 
         if side == "BUY":
             # take last n from ascending bid list and reverse

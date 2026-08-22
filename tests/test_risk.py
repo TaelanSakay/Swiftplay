@@ -29,7 +29,12 @@ def make_features(realized_vol: float | None) -> FeatureSnapshot:
     return FeatureSnapshot(1, 0.0, 100.5, 0.0, 1.0, realized_vol)
 
 
-def apply_quote(manager: RiskManager, inventory: float, equity: float = 100.0, realized_vol: float | None = None) -> Quote:
+def apply_quote(
+    manager: RiskManager,
+    inventory: float,
+    equity: float = 100.0,
+    realized_vol: float | None = None,
+) -> Quote:
     return manager.apply(
         make_quote(), make_state(), make_features(realized_vol), inventory, equity
     )
@@ -53,6 +58,8 @@ def test_inventory_limits_cap_quantity_at_boundary() -> None:
     quote = apply_quote(manager, inventory=9.0)
     assert quote.bid_qty == 1.0
     assert quote.ask_qty == 2.0
+    assert quote.bid_price is not None
+    assert quote.ask_price is not None
     assert quote.bid_price < quote.ask_price
 
 
@@ -82,6 +89,8 @@ def test_volatility_widening_is_symmetric_and_monotonic() -> None:
 
     assert low.bid_price == 99.0
     assert low.ask_price == 101.0
+    assert high.bid_price is not None
+    assert high.ask_price is not None
     assert math.isclose(high.bid_price, 97.5)
     assert math.isclose(high.ask_price, 103.5)
     assert math.isclose(100.5 - high.bid_price, high.ask_price - 100.5)
@@ -112,7 +121,9 @@ def test_risk_limits_apply_to_all_strategies() -> None:
         manager = RiskManager(100000.0, RiskConfig(max_inventory=0.1))
         runner = BacktestRunner(
             strategy,
-            HistoricalReplayFeed("data/sample_btcusd_depth.jsonl", speed_multiplier=None),
+            HistoricalReplayFeed(
+                "data/sample_btcusd_depth.jsonl", speed_multiplier=None
+            ),
             BacktestConfig(initial_capital=100000.0, risk_manager=manager),
         )
         history = runner.run()

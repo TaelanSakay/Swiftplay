@@ -6,13 +6,11 @@ import pytest
 
 from swiftplay.backtest.compare import run_comparison
 from swiftplay.backtest.engine import BacktestConfig
-from swiftplay.data_feed.replay import HistoricalReplayFeed
 from swiftplay.decision.ev_quoting import EVQuotingStrategy
 from swiftplay.decision.heuristic_fill_estimator import HeuristicFillEstimator
 from swiftplay.decision.interfaces import MarketState
 from swiftplay.features.pipeline import FeatureSnapshot
 from swiftplay.models.trained_fill_estimator import TrainedFillProbabilityEstimator
-
 
 ARTIFACT_DIR = "src/swiftplay/models/artifacts"
 SAMPLE_PATH = "data/sample_btcusd_depth.jsonl"
@@ -77,9 +75,8 @@ def test_trained_estimator_returns_probability() -> None:
 
 
 @pytest.mark.skipif(
-    not os.path.exists(SAMPLE_PATH) or not os.path.exists(
-        os.path.join(ARTIFACT_DIR, "model_summary.pkl")
-    ),
+    not os.path.exists(SAMPLE_PATH)
+    or not os.path.exists(os.path.join(ARTIFACT_DIR, "model_summary.pkl")),
     reason="sample data or trained model artifact is not available",
 )
 def test_trained_vs_heuristic_comparison() -> None:
